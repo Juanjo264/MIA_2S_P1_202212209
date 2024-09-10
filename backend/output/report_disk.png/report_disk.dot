@@ -1,0 +1,15 @@
+digraph G {
+		node [shape=plaintext];
+		
+		subgraph cluster_0 {
+			label="Disco1.dsk";
+			fontsize=20;
+			
+			tabla [label=<
+				<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="blue">
+					<TR><TD BGCOLOR="lightblue">MBR</TD><TD BGCOLOR="lightyellow">particion1<BR/>14.65%</TD><TD BGCOLOR="lightyellow">particion2<BR/>4.88%</TD><TD><TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD COLSPAN="5" BGCOLOR="lightgreen">Extendida 4.88%</TD></TR><TR><TD BGCOLOR="lightblue">EBR</TD><TD BGCOLOR="lightcoral">particionl<BR/>50.00%</TD><TD BGCOLOR="lightgray">Libre<BR/>50.00%</TD></TR></TABLE></TD><TD BGCOLOR="lightgray">Libre<BR/>75.58%</TD>
+					</TR>
+				</TABLE>
+			>];
+		}
+	}

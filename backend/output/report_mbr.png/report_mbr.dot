@@ -1,0 +1,48 @@
+digraph G {
+        node [shape=plaintext]
+        tabla [label=<
+            <table border="0" cellborder="1" cellspacing="0">
+                <tr><td colspan="2" bgcolor="lightblue"> REPORTE MBR </td></tr>
+                <tr><td bgcolor="lightgrey">mbr_tamano</td><td>2097152</td></tr>
+                <tr><td bgcolor="lightgrey">mrb_fecha_creacion</td><td>2024-09-07</td></tr>
+                <tr><td bgcolor="lightgrey">mbr_disk_signature</td><td>70530994</td></tr>
+            
+                <tr><td colspan="2" bgcolor="lightyellow"> PARTICIÓN 1 </td></tr>
+                <tr><td bgcolor="lightgrey">part_status</td><td>1</td></tr>
+                <tr><td bgcolor="lightgrey">part_type</td><td>p</td></tr>
+                <tr><td bgcolor="lightgrey">part_fit</td><td>b</td></tr>
+                <tr><td bgcolor="lightgrey">part_start</td><td>159</td></tr>
+                <tr><td bgcolor="lightgrey">part_size</td><td>307200</td></tr>
+                <tr><td bgcolor="lightgrey">part_name</td><td>particion1</td></tr>
+            
+                <tr><td colspan="2" bgcolor="lightyellow"> PARTICIÓN 2 </td></tr>
+                <tr><td bgcolor="lightgrey">part_status</td><td>0</td></tr>
+                <tr><td bgcolor="lightgrey">part_type</td><td>p</td></tr>
+                <tr><td bgcolor="lightgrey">part_fit</td><td>f</td></tr>
+                <tr><td bgcolor="lightgrey">part_start</td><td>307359</td></tr>
+                <tr><td bgcolor="lightgrey">part_size</td><td>102400</td></tr>
+                <tr><td bgcolor="lightgrey">part_name</td><td>particion2</td></tr>
+            
+                <tr><td colspan="2" bgcolor="lightgreen"> PARTICIÓN 3 </td></tr>
+                <tr><td bgcolor="lightgrey">part_status</td><td>0</td></tr>
+                <tr><td bgcolor="lightgrey">part_type</td><td>e</td></tr>
+                <tr><td bgcolor="lightgrey">part_fit</td><td>b</td></tr>
+                <tr><td bgcolor="lightgrey">part_start</td><td>409759</td></tr>
+                <tr><td bgcolor="lightgrey">part_size</td><td>102400</td></tr>
+                <tr><td bgcolor="lightgrey">part_name</td><td>particione</td></tr>
+            
+                <tr><td colspan="2" bgcolor="lightcoral"> PARTICIÓN LÓGICA </td></tr>
+                <tr><td bgcolor="lightgrey">part_fit</td><td>b</td></tr>
+                <tr><td bgcolor="lightgrey">part_start</td><td>409789</td></tr>
+                <tr><td bgcolor="lightgrey">part_size</td><td>51200</td></tr>
+                <tr><td bgcolor="lightgrey">part_next</td><td>-1</td></tr>
+                <tr><td bgcolor="lightgrey">part_name</td><td>particionl</td></tr>
+            
+                <tr><td colspan="2" bgcolor="white"> PARTICIÓN 4 </td></tr>
+                <tr><td bgcolor="lightgrey">part_status</td><td>0</td></tr>
+                <tr><td bgcolor="lightgrey">part_type</td><td>-</td></tr>
+                <tr><td bgcolor="lightgrey">part_fit</td><td>-</td></tr>
+                <tr><td bgcolor="lightgrey">part_start</td><td>0</td></tr>
+                <tr><td bgcolor="lightgrey">part_size</td><td>0</td></tr>
+                <tr><td bgcolor="lightgrey">part_name</td><td></td></tr>
+            </table>>] }

@@ -1,0 +1,46 @@
+digraph G {
+		node [shape=plaintext];
+		rankdir=LR; // Layout de izquierda a derecha
+	inode0 [label=<
+			<table border="0" cellborder="1" cellspacing="0">
+				<tr><td colspan="2" bgcolor="#B0C4DE"><b>REPORTE INODO 0</b></td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>UID</b></td><td bgcolor="#FFFFFF">1</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>GID</b></td><td bgcolor="#FFFFFF">1</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Size</b></td><td bgcolor="#FFFFFF">0</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Atime</b></td><td bgcolor="#FFFFFF">23/08/2024</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Ctime</b></td><td bgcolor="#FFFFFF">23/08/2024</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Mtime</b></td><td bgcolor="#FFFFFF">23/08/2024</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Type</b></td><td bgcolor="#FFFFFF"></td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Perm</b></td><td bgcolor="#FFFFFF">664</td></tr>
+				<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUES DIRECTOS</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">Bloque 1</td><td bgcolor="#FFFFFF">0</td></tr><tr><td bgcolor="#F5F5F5">Bloque 2</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 3</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 4</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 5</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 6</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 7</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 8</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 9</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 10</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 11</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 12</td><td bgcolor="#FFCCCB">-1</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">13</td><td bgcolor="#FFFFFF">-1</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO DOBLE</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">14</td><td bgcolor="#FFFFFF">-1</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO TRIPLE</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">15</td><td bgcolor="#FFFFFF">-1</td></tr>
+			</table>>];
+		inode0 -> inode1;
+inode1 [label=<
+			<table border="0" cellborder="1" cellspacing="0">
+				<tr><td colspan="2" bgcolor="#B0C4DE"><b>REPORTE INODO 1</b></td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>UID</b></td><td bgcolor="#FFFFFF">1</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>GID</b></td><td bgcolor="#FFFFFF">1</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Size</b></td><td bgcolor="#FFFFFF">27</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Atime</b></td><td bgcolor="#FFFFFF">23/08/2024</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Ctime</b></td><td bgcolor="#FFFFFF">23/08/2024</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Mtime</b></td><td bgcolor="#FFFFFF">23/08/2024</td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Type</b></td><td bgcolor="#FFFFFF"></td></tr>
+				<tr><td bgcolor="#F5F5F5"><b>Perm</b></td><td bgcolor="#FFFFFF">664</td></tr>
+				<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUES DIRECTOS</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">Bloque 1</td><td bgcolor="#FFFFFF">1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 2</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 3</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 4</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 5</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 6</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 7</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 8</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 9</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 10</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 11</td><td bgcolor="#FFCCCB">-1</td></tr><tr><td bgcolor="#F5F5F5">Bloque 12</td><td bgcolor="#FFCCCB">-1</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">13</td><td bgcolor="#FFFFFF">-1</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO DOBLE</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">14</td><td bgcolor="#FFFFFF">-1</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO TRIPLE</b></td></tr>
+			<tr><td bgcolor="#F5F5F5">15</td><td bgcolor="#FFFFFF">-1</td></tr>
+			</table>>];
+		inode1 -> inode2;
+}
