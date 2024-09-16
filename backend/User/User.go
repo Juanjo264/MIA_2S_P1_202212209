@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var CurrentLoggedPartitionID string // ID de la partición logueada actualmente
+
 func Login(user string, pass string, id string) (string, error) {
 	fmt.Println("======Start LOGIN======")
 	fmt.Println("User:", user)
@@ -52,7 +54,7 @@ func Login(user string, pass string, id string) (string, error) {
 	}
 	defer file.Close()
 
-	var TempMBR Structs.MRB
+	var TempMBR Structs.MBR
 	// Leer el MBR desde el archivo binario
 	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
 		fmt.Println("Error: No se pudo leer el MBR:", err)
@@ -130,6 +132,7 @@ func Login(user string, pass string, id string) (string, error) {
 	if login {
 		fmt.Println("Usuario logueado con exito")
 		DiskManagement.MarkPartitionAsLoggedIn(id) // Marcar la partición como logueada
+		CurrentLoggedPartitionID = id
 	}
 
 	fmt.Println("======End LOGIN======")
@@ -279,4 +282,43 @@ func AppendToFileBlock(inode *Structs.Inode, newData string, file *os.File, supe
 	}
 
 	return nil
+}
+
+func Logout() (string, error) {
+	fmt.Println("======Start LOGOUT======")
+
+	// Check if there's an active session
+	mountedPartitions := DiskManagement.GetMountedPartitions()
+	var loggedOutPartitionID string
+	var sessionFound bool
+
+	for _, partitions := range mountedPartitions {
+		for _, partition := range partitions {
+			if partition.LoggedIn {
+				loggedOutPartitionID = partition.ID
+				sessionFound = true
+				break
+			}
+		}
+		if sessionFound {
+			break
+		}
+	}
+
+	if !sessionFound {
+		fmt.Println("Error: No hay una sesión activa actualmente.")
+		fmt.Println("======End LOGOUT======")
+		return "Error: No hay una sesión activa actualmente.", nil
+	}
+
+	// Log out the user
+	err := DiskManagement.MarkPartitionAsLoggedOut(loggedOutPartitionID)
+	if err != nil {
+		fmt.Printf("Error al cerrar la sesión: %v\n", err)
+	} else {
+		fmt.Println("Sesión cerrada exitosamente.")
+	}
+
+	fmt.Println("======End LOGOUT======")
+	return "Sesión cerrada exitosamente.", nil
 }

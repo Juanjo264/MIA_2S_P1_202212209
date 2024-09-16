@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type MRB struct {
+type MBR struct {
 	MbrSize      int32    // 4 bytes //int32 va desde -2,147,483,648 hasta 2,147,483,647.
 	CreationDate [10]byte // 10 bytes
 	Signature    int32    // 4 bytes
@@ -12,7 +12,7 @@ type MRB struct {
 	Partitions   [4]Partition
 }
 
-func PrintMBR(data MRB) {
+func PrintMBR(data MBR) {
 	fmt.Println(fmt.Sprintf("CreationDate: %s, fit: %s, size: %d", string(data.CreationDate[:]), string(data.Fit[:]), data.MbrSize))
 	for i := 0; i < 4; i++ {
 		PrintPartition(data.Partitions[i])
