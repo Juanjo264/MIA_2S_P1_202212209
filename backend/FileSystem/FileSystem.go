@@ -1098,3 +1098,91 @@ func markBlockAsUsed(blockIndex int32, superblock Structs.Superblock, file *os.F
 	superblock.S_free_blocks_count-- // Disminuir el contador de bloques libres
 	return nil
 }
+
+func Cat(files []string) (string, error) {
+	var logs string
+	logs += "======INICIO CAT======\n"
+
+	// Verificar si hay una partición logueada
+	if User.CurrentLoggedPartitionID == "" {
+		errMsg := "No hay ninguna partición logueada"
+		logs += errMsg + "\n"
+		return logs, fmt.Errorf(errMsg)
+	}
+
+	// Buscar la partición montada por ID
+	partition, err := getMountedPartition()
+	if err != nil {
+		return "", fmt.Errorf("error al obtener la partición montada: %w", err)
+	}
+
+	// Abrir archivo binario de la partición
+	file, err := Utilities.OpenFile(partition.Path)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error al abrir el archivo: %v", err)
+		logs += errMsg + "\n"
+		return logs, fmt.Errorf(errMsg)
+	}
+	defer file.Close()
+
+	// Leer el MBR para obtener el inicio de la partición
+	var mbr Structs.MBR
+	if err := Utilities.ReadObject(file, &mbr, 0); err != nil {
+		return "", fmt.Errorf("error al leer el MBR: %v", err)
+	}
+
+	// Encontrar la partición montada
+	var partitionStart int64
+	for _, part := range mbr.Partitions {
+		if strings.TrimSpace(string(part.Id[:])) == partition.ID {
+			partitionStart = int64(part.Start)
+			break
+		}
+	}
+
+	if partitionStart == 0 {
+		return "", fmt.Errorf("no se encontró la partición montada")
+	}
+
+	// Leer el superbloque
+	var superblock Structs.Superblock
+	if err := Utilities.ReadObject(file, &superblock, partitionStart); err != nil {
+		return "", fmt.Errorf("error al leer el superbloque: %v", err)
+	}
+
+	// Iterar sobre cada archivo proporcionado
+	for _, filepath := range files {
+		logs += fmt.Sprintf("Leyendo archivo: %s\n", filepath)
+
+		// Buscar el archivo por su ruta y obtener el índice del inodo
+		indexInode := User.InitSearch(filepath, file, superblock)
+		if indexInode == -1 {
+			errMsg := fmt.Sprintf("Error: No se encontró el archivo %s", filepath)
+			logs += errMsg + "\n"
+			continue
+		}
+
+		// Leer el inodo del archivo
+		var inode Structs.Inode
+		inodeOffset := int64(superblock.S_inode_start + indexInode*int32(binary.Size(Structs.Inode{})))
+		if err := Utilities.ReadObject(file, &inode, inodeOffset); err != nil {
+			errMsg := fmt.Sprintf("Error al leer el inodo del archivo %s", filepath)
+			logs += errMsg + "\n"
+			continue
+		}
+
+		// Verificar permisos de lectura del archivo (asumiendo que el permiso de lectura es el primer bit)
+		if inode.I_perm[0] != 'r' {
+			errMsg := fmt.Sprintf("Error: No tiene permiso de lectura para el archivo %s", filepath)
+			logs += errMsg + "\n"
+			continue
+		}
+
+		// Obtener y mostrar el contenido del archivo
+		content := User.GetInodeFileData(inode, file, superblock)
+		logs += fmt.Sprintf("Contenido del archivo %s:\n%s\n", filepath, content)
+	}
+
+	logs += "======FIN CAT======\n"
+	return logs, nil
+}

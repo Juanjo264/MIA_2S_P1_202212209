@@ -982,6 +982,17 @@ func formatInodeToDot(index int32, inode Structs.Inode) string {
 	mtime := cleanDateString(string(inode.I_mtime[:]))
 
 	// Definir el contenido DOT para el inodo actual con colores
+	var typeStr string
+	switch inode.I_type[0] {
+	case '\x00':
+		typeStr = "Directorio"
+	case '\x01':
+		typeStr = "Archivo"
+	default:
+		typeStr = "Desconocido" // Para cualquier otro valor inesperado
+	}
+
+	// Definir el contenido DOT para el inodo actual con el tipo corregido
 	content := fmt.Sprintf(`inode%d [label=<
 		<table border="0" cellborder="1" cellspacing="0">
 			<tr><td colspan="2" bgcolor="#B0C4DE"><b>REPORTE INODO %d</b></td></tr>
@@ -994,7 +1005,7 @@ func formatInodeToDot(index int32, inode Structs.Inode) string {
 			<tr><td bgcolor="#F5F5F5"><b>Type</b></td><td bgcolor="#FFFFFF">%s</td></tr>
 			<tr><td bgcolor="#F5F5F5"><b>Perm</b></td><td bgcolor="#FFFFFF">%s</td></tr>
 			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUES DIRECTOS</b></td></tr>
-		`, index, index, inode.I_uid, inode.I_gid, inode.I_size, atime, ctime, mtime, cleanString(string(inode.I_type[:])), string(inode.I_perm[:]))
+		`, index, index, inode.I_uid, inode.I_gid, inode.I_size, atime, ctime, mtime, typeStr, string(inode.I_perm[:]))
 
 	// Agregar los bloques directos a la tabla
 	for j, block := range inode.I_block[:12] {
