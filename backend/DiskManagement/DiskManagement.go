@@ -906,9 +906,8 @@ func addLogicalPartitions(file *os.File, extendedStart int32, extendedSize int32
 // GenerateInodeReport genera un reporte visual de los inodos y lo guarda en la ruta especificada
 func GenerateInodeReport(path string, partition *MountedPartition) error {
 	// Crear las carpetas padre si no existen
-	err := createDirectoryIfNotExists(path)
-	if err != nil {
-		return err
+	if err := createDirectoryIfNotExists(path); err != nil {
+		return fmt.Errorf("error al crear directorios: %v", err)
 	}
 
 	// Obtener el nombre base del archivo sin la extensión y la imagen de salida
@@ -947,45 +946,8 @@ func GenerateInodeReport(path string, partition *MountedPartition) error {
 			continue // Omitir inodos vacíos
 		}
 
-		// Convertir tiempos a string
-		atime := cleanDateString(string(inode.I_atime[:]))
-		ctime := cleanDateString(string(inode.I_ctime[:]))
-		mtime := cleanDateString(string(inode.I_mtime[:]))
-
-		// Definir el contenido DOT para el inodo actual con colores
-		dotContent += fmt.Sprintf(`inode%d [label=<
-			<table border="0" cellborder="1" cellspacing="0">
-				<tr><td colspan="2" bgcolor="#B0C4DE"><b>REPORTE INODO %d</b></td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>UID</b></td><td bgcolor="#FFFFFF">%d</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>GID</b></td><td bgcolor="#FFFFFF">%d</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>Size</b></td><td bgcolor="#FFFFFF">%d</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>Atime</b></td><td bgcolor="#FFFFFF">%s</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>Ctime</b></td><td bgcolor="#FFFFFF">%s</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>Mtime</b></td><td bgcolor="#FFFFFF">%s</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>Type</b></td><td bgcolor="#FFFFFF">%s</td></tr>
-				<tr><td bgcolor="#F5F5F5"><b>Perm</b></td><td bgcolor="#FFFFFF">%s</td></tr>
-				<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUES DIRECTOS</b></td></tr>
-			`, i, i, inode.I_uid, inode.I_gid, inode.I_size, atime, ctime, mtime, cleanString(string(inode.I_type[:])), string(inode.I_perm[:]))
-
-		// Agregar los bloques directos a la tabla
-		for j, block := range inode.I_block[:12] {
-			color := "#FFFFFF" // Color de fondo para bloques asignados
-			if block == -1 {
-				color = "#FFCCCB" // Resaltar bloques no asignados en rojo claro
-			}
-			dotContent += fmt.Sprintf("<tr><td bgcolor=\"#F5F5F5\">Bloque %d</td><td bgcolor=\"%s\">%d</td></tr>", j+1, color, block)
-		}
-
-		// Agregar bloques indirectos, doble y triple con colores distintos
-		dotContent += fmt.Sprintf(`
-			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO</b></td></tr>
-			<tr><td bgcolor="#F5F5F5">13</td><td bgcolor="#FFFFFF">%d</td></tr>
-			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO DOBLE</b></td></tr>
-			<tr><td bgcolor="#F5F5F5">14</td><td bgcolor="#FFFFFF">%d</td></tr>
-			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO TRIPLE</b></td></tr>
-			<tr><td bgcolor="#F5F5F5">15</td><td bgcolor="#FFFFFF">%d</td></tr>
-			</table>>];
-		`, inode.I_block[12], inode.I_block[13], inode.I_block[14])
+		// Agregar representación del inodo al contenido DOT
+		dotContent += formatInodeToDot(i, inode)
 
 		// Conectar con el siguiente inodo si no es el último
 		if i < superblock.S_inodes_count-1 {
@@ -998,28 +960,63 @@ func GenerateInodeReport(path string, partition *MountedPartition) error {
 
 	// Crear el archivo DOT
 	dotFilePath := filepath.Join(path, dotFileName)
-	fileDot, err := os.Create(dotFilePath)
-	if err != nil {
-		return fmt.Errorf("error al crear el archivo DOT: %v", err)
-	}
-	defer fileDot.Close()
-
-	// Escribir el contenido DOT en el archivo
-	_, err = fileDot.WriteString(dotContent)
-	if err != nil {
-		return fmt.Errorf("error al escribir en el archivo DOT: %v", err)
+	if err := os.WriteFile(dotFilePath, []byte(dotContent), 0644); err != nil {
+		return fmt.Errorf("error al crear o escribir en el archivo DOT: %v", err)
 	}
 
 	// Ejecutar el comando Graphviz para generar la imagen en la misma carpeta
 	outputImagePath := filepath.Join(path, outputImage)
-	cmd := exec.Command("dot", "-Tpng", dotFilePath, "-o", outputImagePath)
-	err = cmd.Run()
-	if err != nil {
+	if err := exec.Command("dot", "-Tpng", dotFilePath, "-o", outputImagePath).Run(); err != nil {
 		return fmt.Errorf("error al ejecutar Graphviz: %v", err)
 	}
 
 	fmt.Println("Imagen del reporte de inodos generada en:", outputImagePath)
 	return nil
+}
+
+// formatInodeToDot genera la representación en formato DOT de un inodo dado
+func formatInodeToDot(index int32, inode Structs.Inode) string {
+	// Convertir tiempos a string
+	atime := cleanDateString(string(inode.I_atime[:]))
+	ctime := cleanDateString(string(inode.I_ctime[:]))
+	mtime := cleanDateString(string(inode.I_mtime[:]))
+
+	// Definir el contenido DOT para el inodo actual con colores
+	content := fmt.Sprintf(`inode%d [label=<
+		<table border="0" cellborder="1" cellspacing="0">
+			<tr><td colspan="2" bgcolor="#B0C4DE"><b>REPORTE INODO %d</b></td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>UID</b></td><td bgcolor="#FFFFFF">%d</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>GID</b></td><td bgcolor="#FFFFFF">%d</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Size</b></td><td bgcolor="#FFFFFF">%d</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Atime</b></td><td bgcolor="#FFFFFF">%s</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Ctime</b></td><td bgcolor="#FFFFFF">%s</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Mtime</b></td><td bgcolor="#FFFFFF">%s</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Type</b></td><td bgcolor="#FFFFFF">%s</td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Perm</b></td><td bgcolor="#FFFFFF">%s</td></tr>
+			<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUES DIRECTOS</b></td></tr>
+		`, index, index, inode.I_uid, inode.I_gid, inode.I_size, atime, ctime, mtime, cleanString(string(inode.I_type[:])), string(inode.I_perm[:]))
+
+	// Agregar los bloques directos a la tabla
+	for j, block := range inode.I_block[:12] {
+		color := "#FFFFFF" // Color de fondo para bloques asignados
+		if block == -1 {
+			color = "#FFCCCB" // Resaltar bloques no asignados en rojo claro
+		}
+		content += fmt.Sprintf("<tr><td bgcolor=\"#F5F5F5\">Bloque %d</td><td bgcolor=\"%s\">%d</td></tr>", j+1, color, block)
+	}
+
+	// Agregar bloques indirectos, doble y triple con colores distintos
+	content += fmt.Sprintf(`
+		<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO</b></td></tr>
+		<tr><td bgcolor="#F5F5F5">13</td><td bgcolor="#FFFFFF">%d</td></tr>
+		<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO DOBLE</b></td></tr>
+		<tr><td bgcolor="#F5F5F5">14</td><td bgcolor="#FFFFFF">%d</td></tr>
+		<tr><td colspan="2" bgcolor="#D3D3D3"><b>BLOQUE INDIRECTO TRIPLE</b></td></tr>
+		<tr><td bgcolor="#F5F5F5">15</td><td bgcolor="#FFFFFF">%d</td></tr>
+		</table>>];
+	`, inode.I_block[12], inode.I_block[13], inode.I_block[14])
+
+	return content
 }
 
 // isEmptyInode verifica si un inodo está vacío o no contiene información útil

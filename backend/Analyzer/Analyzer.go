@@ -3,10 +3,7 @@ package Analyzer
 import (
 	"backend/DiskManagement"
 	"backend/FileSystem"
-	"backend/Structs"
 	"backend/User"
-	"backend/Utilities"
-	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -45,7 +42,7 @@ func Analyzer(input string) (string, error) {
 	case "logout":
 		return User.Logout()
 	case "mkfile":
-		return fn_mkfile(tokens[1:])
+		return FileSystem.ParserMkfile(tokens[1:])
 	case "mkdir":
 		return fn_mkdir(tokens[1:])
 	case "clear":
@@ -463,256 +460,26 @@ func isValidReportName(name string, validReports []string) bool {
 }
 
 func fn_mkdir(tokens []string) (string, error) {
-	fs := flag.NewFlagSet("mkdir", flag.ExitOnError)
-	path := fs.String("path", "", "Ruta del directorio a crear")
-
-	// Parse flags
-	fs.Parse(tokens)
-
-	// Encontrar las flags en el input
-	matches := re.FindAllStringSubmatch(strings.Join(tokens, " "), -1)
-
-	// Procesar los flags
-	for _, match := range matches {
-		flagName := match[1]
-		flagValue := strings.Trim(match[2], "\"")
-
-		switch flagName {
-		case "path":
-			fs.Set(flagName, flagValue)
-		default:
-			return "", fmt.Errorf("flag no reconocida: %s", flagName)
+	// Parsear los argumentos del comando mkdir
+	args := make(map[string]string)
+	for _, token := range tokens {
+		matches := re.FindStringSubmatch(token)
+		if len(matches) == 3 {
+			args[matches[1]] = strings.Trim(matches[2], `"`)
 		}
 	}
 
-	// Validaciones
-	if *path == "" {
-		return "", errors.New("el parámetro -path es obligatorio")
+	// Verificar que se haya proporcionado el argumento -path
+	path, ok := args["path"]
+	if !ok {
+		return "", errors.New("no se proporcionó el argumento -path")
 	}
 
-	// Buscar la partición montada por ID
-	var mountedPartition DiskManagement.MountedPartition
-	var partitionFound bool
-
-	for _, partitions := range DiskManagement.GetMountedPartitions() {
-		for _, partition := range partitions {
-			if partition.Status == '1' { // Verifica que la partición esté montada
-				mountedPartition = partition
-				partitionFound = true
-				break
-			}
-		}
-		if partitionFound {
-			break
-		}
-	}
-
-	if !partitionFound {
-		return "", errors.New("no se encontró una partición montada")
-	}
-
-	// Abrir archivo binario de la partición montada
-	file, err := Utilities.OpenFile(mountedPartition.Path)
+	// Llamar a la función Mkdir para crear los directorios
+	logs, err := FileSystem.Mkdir(path)
 	if err != nil {
-		return "", fmt.Errorf("error al abrir el archivo de la partición: %v", err)
-	}
-	defer file.Close()
-
-	var TempMBR Structs.MBR
-	// Leer el MBR para encontrar la partición
-	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
-		return "", fmt.Errorf("error al leer MBR del archivo")
+		return logs, err
 	}
 
-	// Encontrar la posición de inicio de la partición
-	var index int = -1
-	for i := 0; i < 4; i++ {
-		if TempMBR.Partitions[i].Size != 0 && strings.Contains(string(TempMBR.Partitions[i].Id[:]), mountedPartition.ID) {
-			index = i
-			break
-		}
-	}
-
-	if index == -1 {
-		return "", errors.New("partición no encontrada en el MBR")
-	}
-
-	partitionStart := TempMBR.Partitions[index].Start
-
-	// Leer el superbloque de la partición
-	var superblock Structs.Superblock
-	if err := Utilities.ReadObject(file, &superblock, int64(partitionStart)); err != nil {
-		return "", fmt.Errorf("error al leer el superbloque: %v", err)
-	}
-
-	// Descomponer el path en subdirectorios
-	directories := strings.Split(*path, "/")
-
-	// Crear cada directorio en la secuencia del path
-	for _, dir := range directories {
-		if dir == "" {
-			continue // Ignorar vacíos, que pueden venir de separadores "/" iniciales o finales
-		}
-
-		// Crear el directorio usando la función que definimos anteriormente
-		if err := FileSystem.CreateDirectory(superblock, dir, "23/08/2024", file); err != nil {
-			return "", fmt.Errorf("error al crear el directorio '%s': %v", dir, err)
-		}
-	}
-
-	return fmt.Sprintf("Directorio creado en la ruta: %s", *path), nil
-}
-
-func Mkfile(path string, size int32, content string, superblock Structs.Superblock, date string, file *os.File) error {
-	// Split the path to get the parent directory and file name
-	components := strings.Split(path, "/")
-	fileName := components[len(components)-1]
-	parentPath := strings.Join(components[:len(components)-1], "/")
-
-	// Find the parent directory's inode
-	parentInodeIndex, err := navigateToDirectory(superblock, parentPath, file)
-	if err != nil {
-		return err
-	}
-
-	return FileSystem.CreateFile(superblock, parentInodeIndex, fileName, size, content, date, file)
-}
-
-func navigateToDirectory(superblock Structs.Superblock, path string, file *os.File) (int32, error) {
-	components := strings.Split(strings.Trim(path, "/"), "/")
-	currentInodeIndex := int32(0) // Start from the root directory
-
-	for _, dirName := range components {
-		var currentInode Structs.Inode
-		inodePos := int64(superblock.S_inode_start + currentInodeIndex*int32(binary.Size(Structs.Inode{})))
-		if err := Utilities.ReadObject(file, &currentInode, inodePos); err != nil {
-			return -1, fmt.Errorf("error leyendo inodo: %v", err)
-		}
-
-		// Información de depuración del inodo actual
-		fmt.Printf("Inodo actual: %d, intentando encontrar el directorio '%s'\n", currentInodeIndex, dirName)
-
-		nextInodeIndex, err := FileSystem.FindDirectoryEntry(superblock, currentInode, dirName, file)
-		if err != nil {
-			return -1, fmt.Errorf("error navegando al directorio '%s': %v", dirName, err)
-		}
-
-		if nextInodeIndex == -1 {
-			// Directorio no encontrado, listar los contenidos del directorio actual
-			fmt.Printf("Directorio no encontrado: '%s'\n", dirName)
-			fmt.Printf("Listando el contenido del directorio actual: '%s'\n", path)
-			if err := FileSystem.ListDirectories(superblock, currentInodeIndex, "/"+strings.Join(components[:len(components)-1], "/"), file); err != nil {
-				fmt.Printf("Error listando directorios en '%s': %v\n", path, err)
-			}
-			return -1, fmt.Errorf("directorio no encontrado: %s", dirName)
-		}
-
-		currentInodeIndex = nextInodeIndex
-	}
-
-	return currentInodeIndex, nil
-}
-
-func fn_mkfile(tokens []string) (string, error) {
-	fs := flag.NewFlagSet("mkfile", flag.ExitOnError)
-	path := fs.String("path", "", "Ruta del archivo a crear")
-	size := fs.Int("size", 0, "Tamaño del archivo a crear")
-	recursive := fs.Bool("r", false, "Crear directorios recursivamente")
-
-	fs.Parse(tokens)
-
-	matches := re.FindAllStringSubmatch(strings.Join(tokens, " "), -1)
-
-	for _, match := range matches {
-		flagName := match[1]
-		flagValue := strings.Trim(match[2], "\"")
-
-		switch flagName {
-		case "path":
-			fs.Set(flagName, flagValue)
-		case "size":
-			fs.Set(flagName, flagValue)
-		case "cont":
-			fs.Set(flagName, flagValue)
-		case "r":
-			fs.Set(flagName, flagValue)
-		default:
-			return "", fmt.Errorf("flag no reconocida: %s", flagName)
-		}
-	}
-
-	if *path == "" {
-		return "", errors.New("el parámetro -path es obligatorio")
-	}
-
-	var mountedPartition DiskManagement.MountedPartition
-	var partitionFound bool
-
-	for _, partitions := range DiskManagement.GetMountedPartitions() {
-		for _, partition := range partitions {
-			if partition.Status == '1' {
-				mountedPartition = partition
-				partitionFound = true
-				break
-			}
-		}
-		if partitionFound {
-			break
-		}
-	}
-
-	if !partitionFound {
-		return "", errors.New("no se encontró una partición montada")
-	}
-
-	file, err := Utilities.OpenFile(mountedPartition.Path)
-	if err != nil {
-		return "", fmt.Errorf("error al abrir el archivo de la partición: %v", err)
-	}
-	defer file.Close()
-
-	var TempMBR Structs.MBR
-	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
-		return "", fmt.Errorf("error al leer MBR del archivo")
-	}
-
-	var index int = -1
-	for i := 0; i < 4; i++ {
-		if TempMBR.Partitions[i].Size != 0 && strings.Contains(string(TempMBR.Partitions[i].Id[:]), mountedPartition.ID) {
-			index = i
-			break
-		}
-	}
-
-	if index == -1 {
-		return "", errors.New("partición no encontrada en el MBR")
-	}
-
-	partitionStart := TempMBR.Partitions[index].Start
-
-	var superblock Structs.Superblock
-	if err := Utilities.ReadObject(file, &superblock, int64(partitionStart)); err != nil {
-		return "", fmt.Errorf("error al leer el superbloque: %v", err)
-	}
-
-	// En la función fn_mkfile, ajusta la lógica para manejar los directorios:
-	if *recursive {
-		directories := strings.Split(*path, "/")
-		currentPath := ""
-		for _, dir := range directories[:len(directories)-1] {
-			if dir == "" {
-				continue
-			}
-			currentPath = fmt.Sprintf("%s/%s", currentPath, dir)
-			if err := FileSystem.CreateDirectory(superblock, currentPath, "23/08/2024", file); err != nil {
-				return "", fmt.Errorf("error al crear el directorio '%s': %v", currentPath, err)
-			}
-		}
-	}
-
-	if err := Mkfile(*path, int32(*size), "", superblock, "23/08/2024", file); err != nil {
-		return "", fmt.Errorf("error al crear el archivo: %v", err)
-	}
-
-	return fmt.Sprintf("Archivo creado en la ruta: %s", *path), nil
+	return logs, nil
 }
