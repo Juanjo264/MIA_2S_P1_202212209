@@ -50,10 +50,15 @@ mkdir -path="/home/usac"
 mkdir -path="/home/work"
 mkdir -path="/home/usac/mia"
 mkfile -size=68 -path=/home/usac/mia/a.txt
+
+cat -file1=/home/usac/mia/a.txt
+
 #rep
 rep -id=091a -path="/home/juanjo/output/report_mbr.png" -name=mbr
 rep -id=091a -path="/home/juanjo/output/report_inode.png" -name=inode
 rep -id=091a -path="/home/juanjo/output/report_disk.png" -name=disk
+rep -id=091a -path="/home/juanjo/output/report_sb.png" -name=sb
+rep -id=091a -path="/home/juanjo/output/report_block.png" -name=block
 logout
 
 #fin de comandos

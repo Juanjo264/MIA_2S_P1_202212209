@@ -1057,8 +1057,106 @@ func cleanString(s string) string {
 	return strings.TrimRight(s, "\x00 ")
 }
 
-func GenerateBlockReport(path string, partition MountedPartition) {
-	// Implementación pendiente
+// GenerateBlockReport genera un reporte visual de los bloques y lo guarda en la ruta especificada
+func GenerateBlockReport(path string, partition *MountedPartition) error {
+	// Crear las carpetas padre si no existen
+	if err := createDirectoryIfNotExists(path); err != nil {
+		return fmt.Errorf("Error al crear directorios: %v", err)
+	}
+
+	// Obtener el nombre base del archivo sin la extensión y la imagen de salida
+	dotFileName, outputImage := getFileNames(path)
+
+	// Abrir el archivo binario del disco desde la partición montada
+	file, err := os.Open(partition.Path)
+	if err != nil {
+		return fmt.Errorf("Error al abrir el archivo del disco: %v", err)
+	}
+	defer file.Close()
+
+	// Leer el Superblock para obtener la información de los bloques
+	var superblock Structs.Superblock
+	superblockOffset := int64(binary.Size(Structs.MBR{})) // Ajusta según la posición real del Superblock
+	if err := Utilities.ReadObject(file, &superblock, superblockOffset); err != nil {
+		return fmt.Errorf("Error al leer el Superblock: %v", err)
+	}
+
+	// Iniciar el contenido DOT con configuraciones de color y orden horizontal
+	dotContent := `digraph G {
+		rankdir=LR; // Layout de izquierda a derecha
+		node [shape=plaintext];
+	`
+
+	// Variable para almacenar el nombre del nodo anterior para conectar los bloques
+	var previousBlock string
+
+	// Iterar sobre cada bloque y generar su representación en Graphviz
+	for i := int32(0); i < superblock.S_blocks_count; i++ {
+		var fileBlock Structs.Fileblock
+		blockOffset := superblock.S_block_start + i*superblock.S_block_size
+		if err := Utilities.ReadObject(file, &fileBlock, int64(blockOffset)); err != nil {
+			return fmt.Errorf("Error al leer bloque %d: %v", i, err)
+		}
+
+		// Limpiar el contenido del bloque para eliminar caracteres no imprimibles
+		blockContent := cleanStringb(string(fileBlock.B_content[:]))
+		if blockContent != "" {
+			// Agregar representación del bloque al contenido DOT
+			blockName := fmt.Sprintf("block%d", i)
+			dotContent += formatBlockToDot(i, blockContent)
+
+			// Conectar el bloque anterior con el actual
+			if previousBlock != "" {
+				dotContent += fmt.Sprintf("%s -> %s;\n", previousBlock, blockName)
+			}
+
+			// Actualizar el nombre del nodo anterior
+			previousBlock = blockName
+		}
+	}
+
+	// Cerrar el contenido DOT
+	dotContent += "}"
+
+	// Crear el archivo DOT
+	dotFilePath := filepath.Join(path, dotFileName)
+	if err := os.WriteFile(dotFilePath, []byte(dotContent), 0644); err != nil {
+		return fmt.Errorf("Error al crear o escribir en el archivo DOT: %v", err)
+	}
+
+	// Ejecutar el comando Graphviz para generar la imagen en la misma carpeta
+	outputImagePath := filepath.Join(path, outputImage)
+	if err := exec.Command("dot", "-Tpng", dotFilePath, "-o", outputImagePath).Run(); err != nil {
+		return fmt.Errorf("Error al ejecutar Graphviz: %v", err)
+	}
+
+	fmt.Println("Imagen del reporte de bloques generada en:", outputImagePath)
+	return nil
+}
+
+// formatBlockToDot genera la representación en formato DOT de un bloque dado
+func formatBlockToDot(index int32, content string) string {
+	// Definir el contenido DOT para el bloque actual con colores y separarlo horizontalmente
+	blockDot := fmt.Sprintf(`block%d [label=<
+		<table border="1" cellborder="1" cellspacing="0">
+			<tr><td colspan="2" bgcolor="#B0C4DE"><b>REPORTE BLOQUE %d</b></td></tr>
+			<tr><td bgcolor="#F5F5F5"><b>Contenido</b></td><td bgcolor="#FFFFFF">%s</td></tr>
+		</table>>];
+	`, index, index, content)
+
+	return blockDot
+}
+
+// cleanString elimina o reemplaza caracteres no imprimibles de una cadena
+func cleanStringb(s string) string {
+	// Reemplaza o elimina caracteres no imprimibles
+	cleaned := strings.Map(func(r rune) rune {
+		if r < 32 || r > 126 { // Rango de caracteres imprimibles ASCII estándar
+			return -1 // -1 indica que el carácter debe eliminarse
+		}
+		return r
+	}, s)
+	return cleaned
 }
 
 func GenerateBMInodeReport(path string, partition MountedPartition) {
@@ -1069,8 +1167,98 @@ func GenerateBMBlockReport(path string, partition MountedPartition) {
 	// Implementación pendiente
 }
 
-func GenerateSuperblockReport(path string, partition MountedPartition) {
-	// Implementación pendiente
+// GenerateSuperblockReport genera un reporte del Superbloque y lo guarda en la ruta especificada
+func GenerateSuperblockReport(path string, partition *MountedPartition) error {
+	// Asegúrate de que la partición montada no sea nula
+	if partition == nil {
+		return fmt.Errorf("Error: La partición montada proporcionada es nula")
+	}
+
+	// Abrir el archivo de disco para leer el Superblock
+	file, err := Utilities.OpenFile(partition.Path)
+	if err != nil {
+		return fmt.Errorf("Error al abrir el archivo de disco: %v", err)
+	}
+	defer file.Close()
+
+	// Leer el MBR para ubicar la partición
+	var TempMBR Structs.MBR
+	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
+		return fmt.Errorf("Error al leer el MBR del archivo: %v", err)
+	}
+
+	// Buscar la partición correspondiente dentro del MBR
+	var partitionData Structs.Partition
+	partitionFound := false
+	for i := 0; i < 4; i++ {
+		if string(TempMBR.Partitions[i].Id[:]) == partition.ID {
+			partitionData = TempMBR.Partitions[i]
+			partitionFound = true
+			break
+		}
+	}
+
+	// Si no se encuentra la partición dentro del MBR, retornar un error
+	if !partitionFound {
+		return fmt.Errorf("Error: Partición no encontrada dentro del MBR")
+	}
+
+	// Leer el Superblock de la partición
+	var superblock Structs.Superblock
+	superblockOffset := int64(partitionData.Start)
+	if err := Utilities.ReadObject(file, &superblock, superblockOffset); err != nil {
+		return fmt.Errorf("Error al leer el Superblock desde el archivo: %v", err)
+	}
+
+	// Crear las carpetas padre si no existen
+	if err := createDirectoryIfNotExists(path); err != nil {
+		return fmt.Errorf("Error al crear directorios: %v", err)
+	}
+
+	// Obtener el nombre base del archivo sin la extensión y la imagen de salida
+	dotFileName, outputImage := getFileNames(path)
+
+	// Iniciar el contenido DOT para el Superbloque
+	dotContent := `digraph G {
+		node [shape=plaintext];
+		tabla [label=<
+			<table border="1" cellborder="1" cellspacing="0" cellpadding="10">
+				<tr><td colspan="2" bgcolor="darkgreen"><font color="white">Reporte de SUPERBLOQUE</font></td></tr>
+				<tr><td bgcolor="lightgreen">sb_nombre_hd</td><td>` + partition.Path + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_filesystem_type</td><td>` + fmt.Sprintf("%d", superblock.S_filesystem_type) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_inodes_count</td><td>` + fmt.Sprintf("%d", superblock.S_inodes_count) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_blocks_count</td><td>` + fmt.Sprintf("%d", superblock.S_blocks_count) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_free_blocks_count</td><td>` + fmt.Sprintf("%d", superblock.S_free_blocks_count) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_free_inodes_count</td><td>` + fmt.Sprintf("%d", superblock.S_free_inodes_count) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_mtime</td><td>` + cleanDateString(string(superblock.S_mtime[:])) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_umtime</td><td>` + cleanDateString(string(superblock.S_umtime[:])) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_mnt_count</td><td>` + fmt.Sprintf("%d", superblock.S_mnt_count) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_magic</td><td>` + fmt.Sprintf("0x%X", superblock.S_magic) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_inode_size</td><td>` + fmt.Sprintf("%d", superblock.S_inode_size) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_block_size</td><td>` + fmt.Sprintf("%d", superblock.S_block_size) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_fist_ino</td><td>` + fmt.Sprintf("%d", superblock.S_fist_ino) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_first_blo</td><td>` + fmt.Sprintf("%d", superblock.S_first_blo) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_bm_inode_start</td><td>` + fmt.Sprintf("%d", superblock.S_bm_inode_start) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_bm_block_start</td><td>` + fmt.Sprintf("%d", superblock.S_bm_block_start) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_inode_start</td><td>` + fmt.Sprintf("%d", superblock.S_inode_start) + `</td></tr>
+				<tr><td bgcolor="lightgreen">sb_block_start</td><td>` + fmt.Sprintf("%d", superblock.S_block_start) + `</td></tr>
+			</table>>];
+	}`
+
+	// Crear el archivo DOT
+	dotFilePath := filepath.Join(path, dotFileName)
+	if err := os.WriteFile(dotFilePath, []byte(dotContent), 0644); err != nil {
+		return fmt.Errorf("Error al crear o escribir en el archivo DOT: %v", err)
+	}
+
+	// Ejecutar el comando Graphviz para generar la imagen en la misma carpeta
+	outputImagePath := filepath.Join(path, outputImage)
+	if err := exec.Command("dot", "-Tpng", dotFilePath, "-o", outputImagePath).Run(); err != nil {
+		return fmt.Errorf("Error al ejecutar Graphviz: %v", err)
+	}
+
+	fmt.Println("Imagen del reporte del Superbloque generada en:", outputImagePath)
+	return nil
 }
 
 func GenerateFileReport(path string, partition MountedPartition, pathFileLs string) {

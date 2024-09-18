@@ -226,28 +226,36 @@ func SarchInodeByPath(StepsPath []string, Inode Structs.Inode, file *os.File, te
 
 func GetInodeFileData(Inode Structs.Inode, file *os.File, tempSuperblock Structs.Superblock) string {
 	fmt.Println("======Start CONTENIDO DEL BLOQUE======")
-	index := int32(0)
-	// define content as a string
 	var content string
 
-	// Iterate over i_blocks from Inode
-	for _, block := range Inode.I_block {
-		if block != -1 {
-			//Dentro de los directos
-			if index < 13 {
-				var crrFileBlock Structs.Fileblock
-				// Read object from bin file
-				if err := Utilities.ReadObject(file, &crrFileBlock, int64(tempSuperblock.S_block_start+block*int32(binary.Size(Structs.Fileblock{})))); err != nil {
-					return ""
-				}
-
-				content += string(crrFileBlock.B_content[:])
-
-			} else {
-				fmt.Print("indirectos")
-			}
+	// Iterar sobre los bloques directos
+	for index, block := range Inode.I_block {
+		if block == -1 {
+			continue
 		}
-		index++
+
+		// Leer solo los bloques directos (0-12)
+		if index < 13 {
+			var crrFileBlock Structs.Fileblock
+			blockOffset := int64(tempSuperblock.S_block_start + block*int32(binary.Size(Structs.Fileblock{})))
+
+			// Leer el bloque del archivo
+			if err := Utilities.ReadObject(file, &crrFileBlock, blockOffset); err != nil {
+				fmt.Println("Error al leer el bloque de archivo:", err)
+				return ""
+			}
+
+			// Convertir el contenido del bloque en una cadena, eliminando los caracteres nulos
+			blockContent := string(crrFileBlock.B_content[:])
+			cleanContent := strings.TrimRight(blockContent, "\x00")
+
+			// Concatenar al contenido total
+			content += cleanContent
+
+		} else {
+			// Aquí se manejarían los bloques indirectos (si los tuvieras implementados)
+			fmt.Print("indirectos")
+		}
 	}
 
 	fmt.Println("======End CONTENIDO DEL BLOQUE======")

@@ -540,7 +540,10 @@ func Mkdir(path string) (string, error) {
 	}
 
 	logs += "======FIN MKDIR======\n"
+	fmt.Println("Directorio creado-------------: %s", path)
+	ListDirectories()
 	return logs + fmt.Sprintf("Directorio creado: %s", path), nil
+
 }
 
 func findDirectory(name string, parentInode int32, file *os.File, superblock Structs.Superblock) (bool, int32) {
@@ -561,8 +564,10 @@ func findDirectory(name string, parentInode int32, file *os.File, superblock Str
 			return false, -1
 		}
 
+		// Revisar si el nombre del directorio ya existe en el contenido del folderblock
 		for _, content := range folderblock.B_content {
-			if string(content.B_name[:]) == name {
+			trimmedName := strings.TrimRight(string(content.B_name[:]), "\x00") // Eliminar caracteres nulos
+			if trimmedName == name && content.B_inodo != -1 {
 				return true, content.B_inodo
 			}
 		}
@@ -699,6 +704,7 @@ func updateParentFolderblock(name string, parentInode int32, newInodeIndex int32
 		// Buscar un espacio vacío dentro del folderblock
 		for j, content := range folderblock.B_content {
 			if content.B_inodo == -1 {
+				// Insertar el nuevo contenido sin sobrescribir entradas existentes
 				folderblock.B_content[j].B_inodo = newInodeIndex
 				copy(folderblock.B_content[j].B_name[:], name)
 				if err := Utilities.WriteObject(file, folderblock, blockOffset); err != nil {
@@ -768,6 +774,141 @@ func handleIndirectBlocks(blockIndex int32, name string, newInodeIndex int32, fi
 	}
 
 	return fmt.Errorf("no hay espacio en los bloques indirectos")
+}
+
+// ListDirectories recorre y lista todos los directorios en el sistema de archivos
+func ListDirectories() error {
+	if User.CurrentLoggedPartitionID == "" {
+		return fmt.Errorf("No hay ninguna partición logueada")
+	}
+
+	mountedPartition, err := findMountedPartition(User.CurrentLoggedPartitionID)
+	if err != nil {
+		return err
+	}
+
+	file, err := Utilities.OpenFile(mountedPartition.Path)
+	if err != nil {
+		return fmt.Errorf("Error al abrir el archivo: %v", err)
+	}
+	defer file.Close()
+
+	TempMBR, err := readMBR(file)
+	if err != nil {
+		return err
+	}
+
+	index := findPartitionIndex(TempMBR, User.CurrentLoggedPartitionID)
+	if index == -1 {
+		return fmt.Errorf("Partición no encontrada (2)")
+	}
+
+	superblock, err := readSuperblock(file, int64(TempMBR.Partitions[index].Start))
+	if err != nil {
+		return err
+	}
+
+	return traverseDirectory(0, file, superblock)
+}
+
+func traverseDirectory(inodeIndex int32, file *os.File, superblock Structs.Superblock) error {
+	inode, err := readInode(inodeIndex, file, superblock)
+	if err != nil {
+		return err
+	}
+
+	for _, block := range inode.I_block {
+		if block == -1 {
+			continue
+		}
+
+		folderblock, err := readFolderBlock(block, file, superblock)
+		if err != nil {
+			return err
+		}
+
+		for _, content := range folderblock.B_content {
+			name := strings.TrimRight(string(content.B_name[:]), "\x00")
+			if content.B_inodo != -1 && name != "." && name != ".." {
+				// Verificar si el inodo es un directorio
+				childInode, err := readInode(content.B_inodo, file, superblock)
+				if err != nil {
+					return err
+				}
+				if isDirectory(childInode) {
+					fmt.Println("Directory:", name)
+					if err := traverseDirectory(content.B_inodo, file, superblock); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func readInode(inodeIndex int32, file *os.File, superblock Structs.Superblock) (Structs.Inode, error) {
+	var inode Structs.Inode
+	offset := int64(superblock.S_inode_start + inodeIndex*int32(binary.Size(Structs.Inode{})))
+	if err := Utilities.ReadObject(file, &inode, offset); err != nil {
+		return inode, fmt.Errorf("error al leer el inodo: %v", err)
+	}
+	return inode, nil
+}
+
+func readFolderBlock(blockIndex int32, file *os.File, superblock Structs.Superblock) (Structs.Folderblock, error) {
+	var folderblock Structs.Folderblock
+	offset := int64(superblock.S_block_start + blockIndex*int32(binary.Size(Structs.Folderblock{})))
+	if err := Utilities.ReadObject(file, &folderblock, offset); err != nil {
+		return folderblock, fmt.Errorf("error al leer el folderblock: %v", err)
+	}
+	return folderblock, nil
+}
+
+func isDirectory(inode Structs.Inode) bool {
+	// Asumimos que el tipo de archivo se almacena en I_type
+	// y que '0' representa un directorio
+	return inode.I_type[0] == byte(0)
+}
+
+func findMountedPartition(id string) (DiskManagement.MountedPartition, error) {
+	for _, partitions := range DiskManagement.GetMountedPartitions() {
+		for _, partition := range partitions {
+			if partition.ID == id {
+				if partition.Status != '1' {
+					return partition, fmt.Errorf("La partición aún no está montada")
+				}
+				return partition, nil
+			}
+		}
+	}
+	return DiskManagement.MountedPartition{}, fmt.Errorf("Partición no encontrada")
+}
+
+func readMBR(file *os.File) (Structs.MBR, error) {
+	var TempMBR Structs.MBR
+	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
+		return TempMBR, fmt.Errorf("Error al leer MBR del archivo")
+	}
+	return TempMBR, nil
+}
+
+func findPartitionIndex(TempMBR Structs.MBR, id string) int {
+	for i := 0; i < 4; i++ {
+		if TempMBR.Partitions[i].Size != 0 && strings.Contains(string(TempMBR.Partitions[i].Id[:]), id) {
+			return i
+		}
+	}
+	return -1
+}
+
+func readSuperblock(file *os.File, start int64) (Structs.Superblock, error) {
+	var superblock Structs.Superblock
+	if err := Utilities.ReadObject(file, &superblock, start); err != nil {
+		return superblock, fmt.Errorf("Error al leer el superbloque")
+	}
+	return superblock, nil
 }
 
 type MKFILE struct {
@@ -1052,12 +1193,14 @@ func createFileInDirectory(fileName string, parentInode int32, size int, content
 	var newFileblock Structs.Fileblock
 	copy(newFileblock.B_content[:], content)
 
+	// Depuración: Imprimir el contenido que se va a escribir en el bloque
+	fmt.Printf("Escribiendo contenido en el bloque: %s\n", content)
+
 	// Escribe el nuevo fileblock en el archivo
 	blockOffset := int64(superblock.S_block_start + newBlockIndex*int32(binary.Size(Structs.Fileblock{})))
 	if err := Utilities.WriteObject(file, newFileblock, blockOffset); err != nil {
 		return fmt.Errorf("error al escribir el bloque de archivo: %v", err)
 	}
-
 	// Marca el inodo y el bloque como usados en los bitmaps
 	if err := markInodeAsUsed(newInodeIndex, superblock, file); err != nil {
 		return fmt.Errorf("error al marcar el inodo como usado: %v", err)
@@ -1102,87 +1245,5 @@ func markBlockAsUsed(blockIndex int32, superblock Structs.Superblock, file *os.F
 func Cat(files []string) (string, error) {
 	var logs string
 	logs += "======INICIO CAT======\n"
-
-	// Verificar si hay una partición logueada
-	if User.CurrentLoggedPartitionID == "" {
-		errMsg := "No hay ninguna partición logueada"
-		logs += errMsg + "\n"
-		return logs, fmt.Errorf(errMsg)
-	}
-
-	// Buscar la partición montada por ID
-	partition, err := getMountedPartition()
-	if err != nil {
-		return "", fmt.Errorf("error al obtener la partición montada: %w", err)
-	}
-
-	// Abrir archivo binario de la partición
-	file, err := Utilities.OpenFile(partition.Path)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error al abrir el archivo: %v", err)
-		logs += errMsg + "\n"
-		return logs, fmt.Errorf(errMsg)
-	}
-	defer file.Close()
-
-	// Leer el MBR para obtener el inicio de la partición
-	var mbr Structs.MBR
-	if err := Utilities.ReadObject(file, &mbr, 0); err != nil {
-		return "", fmt.Errorf("error al leer el MBR: %v", err)
-	}
-
-	// Encontrar la partición montada
-	var partitionStart int64
-	for _, part := range mbr.Partitions {
-		if strings.TrimSpace(string(part.Id[:])) == partition.ID {
-			partitionStart = int64(part.Start)
-			break
-		}
-	}
-
-	if partitionStart == 0 {
-		return "", fmt.Errorf("no se encontró la partición montada")
-	}
-
-	// Leer el superbloque
-	var superblock Structs.Superblock
-	if err := Utilities.ReadObject(file, &superblock, partitionStart); err != nil {
-		return "", fmt.Errorf("error al leer el superbloque: %v", err)
-	}
-
-	// Iterar sobre cada archivo proporcionado
-	for _, filepath := range files {
-		logs += fmt.Sprintf("Leyendo archivo: %s\n", filepath)
-
-		// Buscar el archivo por su ruta y obtener el índice del inodo
-		indexInode := User.InitSearch(filepath, file, superblock)
-		if indexInode == -1 {
-			errMsg := fmt.Sprintf("Error: No se encontró el archivo %s", filepath)
-			logs += errMsg + "\n"
-			continue
-		}
-
-		// Leer el inodo del archivo
-		var inode Structs.Inode
-		inodeOffset := int64(superblock.S_inode_start + indexInode*int32(binary.Size(Structs.Inode{})))
-		if err := Utilities.ReadObject(file, &inode, inodeOffset); err != nil {
-			errMsg := fmt.Sprintf("Error al leer el inodo del archivo %s", filepath)
-			logs += errMsg + "\n"
-			continue
-		}
-
-		// Verificar permisos de lectura del archivo (asumiendo que el permiso de lectura es el primer bit)
-		if inode.I_perm[0] != 'r' {
-			errMsg := fmt.Sprintf("Error: No tiene permiso de lectura para el archivo %s", filepath)
-			logs += errMsg + "\n"
-			continue
-		}
-
-		// Obtener y mostrar el contenido del archivo
-		content := User.GetInodeFileData(inode, file, superblock)
-		logs += fmt.Sprintf("Contenido del archivo %s:\n%s\n", filepath, content)
-	}
-
-	logs += "======FIN CAT======\n"
 	return logs, nil
 }

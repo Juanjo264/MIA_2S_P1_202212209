@@ -45,6 +45,8 @@ func Analyzer(input string) (string, error) {
 		return FileSystem.ParserMkfile(tokens[1:])
 	case "mkdir":
 		return fn_mkdir(tokens[1:])
+	case "cat":
+		return FileSystem.Cat(tokens[1:])
 	case "clear":
 		// Crea un comando para limpiar la terminal
 		cmd := exec.Command("clear")
@@ -422,15 +424,14 @@ func fn_rep(tokens []string) (string, error) {
 		DiskManagement.GenerateDiskReport(*path, partition)
 	case "inode":
 		DiskManagement.GenerateInodeReport(*path, partition)
-
 	case "block":
-		DiskManagement.GenerateBlockReport(*path, *partition)
+		DiskManagement.GenerateBlockReport(*path, partition)
 	case "bm_inode":
 		DiskManagement.GenerateBMInodeReport(*path, *partition)
 	case "bm_block":
 		DiskManagement.GenerateBMBlockReport(*path, *partition)
 	case "sb":
-		DiskManagement.GenerateSuperblockReport(*path, *partition)
+		DiskManagement.GenerateSuperblockReport(*path, partition)
 	case "file":
 		if *pathFileLs == "" {
 			fmt.Println("Error: El parámetro -path_file_ls es obligatorio para el reporte file.")
