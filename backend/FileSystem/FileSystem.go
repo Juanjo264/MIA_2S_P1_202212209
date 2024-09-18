@@ -516,9 +516,9 @@ func Mkdir(path string) (string, error) {
 		return logs, fmt.Errorf(errMsg)
 	}
 
-	// Crear los directorios
+	// Crear los directorios de la ruta de manera secuencial
 	directories := strings.Split(path, "/")
-	currentInode := int32(0) // Asumimos que el inodo raíz es 0
+	currentInode := int32(0) // Comienza en el inodo raíz (usualmente inodo 0)
 
 	for _, dir := range directories {
 		if dir == "" {
@@ -528,13 +528,16 @@ func Mkdir(path string) (string, error) {
 		// Busca si el directorio ya existe
 		found, inodeIndex := findDirectory(dir, currentInode, file, superblock)
 		if found {
+			// Si el directorio existe, actualiza el inodo actual al inodo encontrado
 			currentInode = inodeIndex
 		} else {
-			// Crea el nuevo directorio
+			// Si el directorio no existe, crea uno nuevo bajo el inodo actual
 			newInodeIndex, err := createDirectory(dir, currentInode, file, superblock)
 			if err != nil {
+				logs += fmt.Sprintf("Error creando directorio '%s': %v\n", dir, err)
 				return logs, err
 			}
+			// Actualiza el inodo actual al nuevo inodo creado
 			currentInode = newInodeIndex
 		}
 	}
@@ -543,7 +546,6 @@ func Mkdir(path string) (string, error) {
 	fmt.Println("Directorio creado-------------: %s", path)
 	ListDirectories()
 	return logs + fmt.Sprintf("Directorio creado: %s", path), nil
-
 }
 
 func findDirectory(name string, parentInode int32, file *os.File, superblock Structs.Superblock) (bool, int32) {
@@ -662,6 +664,7 @@ func updateParentFolderblock(name string, parentInode int32, newInodeIndex int32
 		return fmt.Errorf("error al leer el inodo padre: %v", err)
 	}
 
+	// Recorre los bloques del inodo padre para encontrar uno existente o asignar uno nuevo
 	for i, block := range inode.I_block {
 		if block == -1 {
 			// Si no hay un bloque asignado, asignar uno nuevo
@@ -671,7 +674,7 @@ func updateParentFolderblock(name string, parentInode int32, newInodeIndex int32
 			}
 			inode.I_block[i] = newBlockIndex
 
-			// Inicializar el nuevo folderblock y escribirlo
+			// Inicializa el nuevo Folderblock y escríbelo
 			var newFolderblock Structs.Folderblock
 			newFolderblock.B_content[0].B_inodo = newInodeIndex
 			copy(newFolderblock.B_content[0].B_name[:], name)
@@ -681,7 +684,7 @@ func updateParentFolderblock(name string, parentInode int32, newInodeIndex int32
 				return fmt.Errorf("error al escribir el nuevo folderblock: %v", err)
 			}
 
-			// Escribir el inodo actualizado en el archivo
+			// Escribe el inodo actualizado en el archivo
 			if err := Utilities.WriteObject(file, inode, inodeOffset); err != nil {
 				return fmt.Errorf("error al actualizar el inodo padre: %v", err)
 			}
@@ -704,7 +707,7 @@ func updateParentFolderblock(name string, parentInode int32, newInodeIndex int32
 		// Buscar un espacio vacío dentro del folderblock
 		for j, content := range folderblock.B_content {
 			if content.B_inodo == -1 {
-				// Insertar el nuevo contenido sin sobrescribir entradas existentes
+				// Inserta el nuevo contenido sin sobrescribir los existentes
 				folderblock.B_content[j].B_inodo = newInodeIndex
 				copy(folderblock.B_content[j].B_name[:], name)
 				if err := Utilities.WriteObject(file, folderblock, blockOffset); err != nil {
